@@ -1,0 +1,55 @@
+# =========================
+# SYSTEM
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# VS CODE
+# =========================
+.vscode/
+*.code-workspace
+
+# =========================
+# XAMPP / TEMPORARY
+# =========================
+xampp/
+tmp/
+temp/
+cache/
+
+# =========================
+# LOG
+# =========================
+*.log
+
+# =========================
+# ENV / SECRET
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# BACKUP
+# =========================
+*.bak
+*.backup
+*.old
+
+# =========================
+# UPLOAD USER
+# =========================
+uploads/*
+
+# Jangan hapus folder upload
+!uploads/
+!uploads/produk/
+!uploads/profil/
+
+# =========================
+# DATABASE LOCAL
+# =========================
+*.sqlite
+*.sqlite3
