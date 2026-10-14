@@ -617,7 +617,7 @@
 
 
                 <!-- NOTIFIKASI -->
-
+ 
                 <a
                     href="notifikasi.php"
                     class="btn btn-outline-secondary btn-sm position-relative"
@@ -636,7 +636,7 @@
                             class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger notification-badge"
                         >
                             <?= $jumlahNotif ?>
-                        </span>
+                            </span>
 
                     <?php endif; ?>
 

@@ -1,71 +1,806 @@
 <?php
+
 require_once "../config/database.php";
 require_once "../config/auth.php";
 require_once "../config/helper.php";
+
 wajibRole("penjual");
-$user_id = userId();
-$stmt = $conn->prepare("SELECT id,nama_usaha,alamat,latitude,longitude FROM penjual WHERE user_id=? LIMIT 1");
-if (!$stmt) die("Gagal menyiapkan data penjual.");
-$stmt->bind_param("i",$user_id); $stmt->execute();
-$penjual=$stmt->get_result()->fetch_assoc(); $stmt->close();
-if (!$penjual) die("Data penjual tidak ditemukan.");
-$pesan=""; $tipePesan="success";
-if ($_SERVER['REQUEST_METHOD']==='POST') {
-  $latitude=trim($_POST['latitude']??''); $longitude=trim($_POST['longitude']??'');
-  if ($latitude==='' || $longitude==='' || !is_numeric($latitude) || !is_numeric($longitude)) { $pesan="Latitude dan longitude wajib diisi dengan koordinat yang valid."; $tipePesan="danger"; }
-  else { $latitude=(float)$latitude; $longitude=(float)$longitude;
-    if ($latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) { $pesan="Koordinat berada di luar batas yang valid."; $tipePesan="danger"; }
-    else { $stmt=$conn->prepare("UPDATE penjual SET latitude=?, longitude=? WHERE user_id=?");
-      if (!$stmt) { $pesan="Gagal menyiapkan penyimpanan lokasi."; $tipePesan="danger"; }
-      else { $stmt->bind_param("ddi",$latitude,$longitude,$user_id);
-        if ($stmt->execute()) { $pesan="Lokasi usaha berhasil disimpan."; $penjual['latitude']=$latitude; $penjual['longitude']=$longitude; }
-        else { $pesan="Lokasi usaha gagal disimpan."; $tipePesan="danger"; }
-        $stmt->close();
-      }
-    }
-  }
+
+$userId = userId();
+
+$pesan = "";
+$tipePesan = "";
+
+/*
+|--------------------------------------------------------------------------
+| AMBIL DATA PENJUAL
+|--------------------------------------------------------------------------
+*/
+
+$stmt = $conn->prepare("
+    SELECT
+        id,
+        nama_usaha,
+        alamat,
+        latitude,
+        longitude
+    FROM penjual
+    WHERE user_id = ?
+    LIMIT 1
+");
+
+$stmt->bind_param("i", $userId);
+$stmt->execute();
+
+$result = $stmt->get_result();
+$penjual = $result->fetch_assoc();
+
+$stmt->close();
+
+
+if (!$penjual) {
+    die("Data penjual tidak ditemukan.");
 }
+
+
+/*
+|--------------------------------------------------------------------------
+| SIMPAN LOKASI
+|--------------------------------------------------------------------------
+*/
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    $latitude = trim($_POST['latitude'] ?? '');
+    $longitude = trim($_POST['longitude'] ?? '');
+
+    if ($latitude === '' || $longitude === '') {
+
+        $pesan = "Latitude dan longitude wajib diisi.";
+        $tipePesan = "danger";
+
+    } elseif (
+        !is_numeric($latitude) ||
+        !is_numeric($longitude) ||
+        (float)$latitude < -90 ||
+        (float)$latitude > 90 ||
+        (float)$longitude < -180 ||
+        (float)$longitude > 180
+    ) {
+
+        $pesan = "Koordinat lokasi tidak valid.";
+        $tipePesan = "danger";
+
+    } else {
+
+        $lat = (float)$latitude;
+        $lng = (float)$longitude;
+
+        $stmt = $conn->prepare("
+            UPDATE penjual
+            SET
+                latitude = ?,
+                longitude = ?
+            WHERE id = ?
+              AND user_id = ?
+        ");
+
+        $stmt->bind_param(
+            "ddii",
+            $lat,
+            $lng,
+            $penjual['id'],
+            $userId
+        );
+
+        if ($stmt->execute()) {
+
+            $pesan = "Lokasi usaha berhasil disimpan.";
+            $tipePesan = "success";
+
+            // Update data yang tampil
+            $penjual['latitude'] = $lat;
+            $penjual['longitude'] = $lng;
+
+        } else {
+
+            $pesan = "Gagal menyimpan lokasi usaha.";
+            $tipePesan = "danger";
+        }
+
+        $stmt->close();
+    }
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| STATUS LOKASI
+|--------------------------------------------------------------------------
+*/
+
+$lokasiLengkap =
+    $penjual['latitude'] !== null &&
+    $penjual['longitude'] !== null &&
+    $penjual['latitude'] !== '' &&
+    $penjual['longitude'] !== '';
+
 ?>
+
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Lokasi Usaha - SIPESTA</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-<style>
-body{background:#f5f7fb}.page-card{border:none;border-radius:18px;box-shadow:0 4px 18px rgba(0,0,0,.06)}
-.location-card{border:1px solid #e5e7eb;border-radius:15px;background:#fbfffc}.coordinate-box{background:#f8f9fa;border-radius:12px;padding:15px}.coordinate-value{font-weight:700;word-break:break-word}.status-box{border-radius:12px}.location-icon{width:55px;height:55px;border-radius:15px;display:flex;align-items:center;justify-content:center;background:#e8f5e9;color:#198754;font-size:24px;flex-shrink:0}
-</style>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Lokasi Usaha - SIPESTA</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+        rel="stylesheet"
+    >
+
+    <style>
+
+        body {
+            background: #f5f7fb;
+        }
+
+        .navbar {
+            box-shadow: 0 2px 10px rgba(0,0,0,.05);
+        }
+
+        .card {
+            border: none;
+            border-radius: 18px;
+            box-shadow: 0 5px 20px rgba(0,0,0,.06);
+        }
+
+        .location-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin: 0 auto 20px;
+        }
+
+        .location-success {
+            background: #d1e7dd;
+            color: #198754;
+        }
+
+        .location-warning {
+            background: #fff3cd;
+            color: #997404;
+        }
+
+        .coordinate-box {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid #e9ecef;
+        }
+
+        .coordinate-value {
+            font-family: monospace;
+            font-size: 15px;
+        }
+
+        .gps-button {
+            min-height: 48px;
+        }
+
+        .info-card {
+            border-left: 4px solid #198754;
+        }
+
+        .form-control {
+            min-height: 45px;
+        }
+
+    </style>
+
 </head>
+
+
 <body>
-<nav class="navbar navbar-expand-lg bg-white shadow-sm"><div class="container">
-<a href="index.php" class="navbar-brand fw-bold text-success"><i class="fa-solid fa-store"></i> SIPESTA</a>
-<a href="index.php" class="btn btn-outline-success"><i class="fa-solid fa-arrow-left"></i> Dashboard</a>
-</div></nav>
+
+
+<!-- NAVBAR -->
+
+<nav class="navbar navbar-expand-lg bg-white">
+
+    <div class="container">
+
+        <a
+            href="index.php"
+            class="navbar-brand fw-bold text-success"
+        >
+
+            <i class="bi bi-shop"></i>
+
+            SIPESTA
+
+        </a>
+
+
+        <div class="d-flex align-items-center gap-2">
+
+            <a
+                href="index.php"
+                class="btn btn-outline-secondary btn-sm"
+            >
+
+                <i class="bi bi-arrow-left"></i>
+
+                Dashboard
+
+            </a>
+
+        </div>
+
+    </div>
+
+</nav>
+
+
 <div class="container py-4">
-<div class="mb-4"><h3 class="fw-bold mb-1"><i class="fa-solid fa-location-dot text-danger"></i> Lokasi Usaha</h3><p class="text-muted mb-0">Atur lokasi usaha untuk membantu sistem menghitung jarak dan ongkos kirim kepada pembeli.</p></div>
-<?php if($pesan!==''): ?><div class="alert alert-<?=e($tipePesan)?> alert-dismissible fade show"><i class="fa-solid <?= $tipePesan==='success'?'fa-circle-check':'fa-circle-exclamation'?>"></i> <?=e($pesan)?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div><?php endif; ?>
-<div class="row g-4"><div class="col-lg-8"><div class="card page-card"><div class="card-body p-4">
-<div class="d-flex gap-3 align-items-start mb-4"><div class="location-icon"><i class="fa-solid fa-map-location-dot"></i></div><div><h5 class="fw-bold mb-1"><?=e($penjual['nama_usaha'])?></h5><div class="text-muted"><i class="fa-solid fa-location-dot"></i> <?=e($penjual['alamat']?:'Alamat belum tersedia')?></div></div></div>
-<div id="statusLokasi" class="alert alert-secondary status-box"><i class="fa-solid fa-circle-info"></i> Silakan ambil lokasi usaha menggunakan GPS perangkat.</div>
-<form method="POST" id="formLokasi">
-<input type="hidden" name="latitude" id="latitude" value="<?=e($penjual['latitude']??'')?>"><input type="hidden" name="longitude" id="longitude" value="<?=e($penjual['longitude']??'')?>">
-<div class="d-flex flex-wrap gap-2 mb-4"><button type="button" class="btn btn-primary" id="btnLokasi"><i class="fa-solid fa-crosshairs"></i> Gunakan Lokasi Saya</button><button type="button" class="btn btn-outline-secondary" id="btnHapus"><i class="fa-solid fa-xmark"></i> Hapus Lokasi</button><button type="submit" class="btn btn-success" id="btnSimpan" disabled><i class="fa-solid fa-save"></i> Simpan Lokasi</button></div>
-<div class="row g-3"><div class="col-md-6"><div class="coordinate-box"><small class="text-muted d-block mb-1">Latitude</small><div id="latitudeTampil" class="coordinate-value"><?=e($penjual['latitude']??'-')?></div></div></div><div class="col-md-6"><div class="coordinate-box"><small class="text-muted d-block mb-1">Longitude</small><div id="longitudeTampil" class="coordinate-value"><?=e($penjual['longitude']??'-')?></div></div></div></div>
-<div class="mt-4 p-3 bg-light rounded-3 small text-muted"><i class="fa-solid fa-shield-halved text-success"></i> Koordinat ini digunakan SIPESTA untuk menghitung jarak antara lokasi usaha Anda dengan lokasi pengiriman pembeli.</div>
-</form></div></div></div>
-<div class="col-lg-4"><div class="card page-card"><div class="card-body p-4"><h5 class="fw-bold mb-3"><i class="fa-solid fa-circle-question text-success"></i> Informasi</h5><div class="small text-muted"><p><i class="fa-solid fa-1 text-success me-2"></i> Aktifkan GPS pada perangkat.</p><p><i class="fa-solid fa-2 text-success me-2"></i> Klik <strong>Gunakan Lokasi Saya</strong>.</p><p><i class="fa-solid fa-3 text-success me-2"></i> Periksa koordinat yang muncul.</p><p class="mb-0"><i class="fa-solid fa-4 text-success me-2"></i> Klik <strong>Simpan Lokasi</strong>.</p></div><hr><div class="small"><div class="fw-semibold mb-2">Fungsi lokasi:</div><ul class="text-muted ps-3 mb-0"><li>Menghitung jarak pengiriman</li><li>Menghitung ongkos kirim</li><li>Menentukan jangkauan pengiriman</li></ul></div></div></div></div></div>
+
+
+    <!-- HEADER -->
+
+    <div class="mb-4">
+
+        <h3 class="fw-bold mb-1">
+
+            <i class="bi bi-geo-alt-fill text-success"></i>
+
+            Lokasi Usaha
+
+        </h3>
+
+        <p class="text-muted mb-0">
+
+            Atur lokasi usaha Anda untuk mendukung perhitungan
+            jarak dan ongkos kirim.
+
+        </p>
+
+    </div>
+
+
+    <!-- PESAN -->
+
+    <?php if ($pesan !== ""): ?>
+
+        <div
+            class="alert alert-<?= e($tipePesan) ?> alert-dismissible fade show"
+        >
+
+            <?php if ($tipePesan === 'success'): ?>
+
+                <i class="bi bi-check-circle-fill"></i>
+
+            <?php else: ?>
+
+                <i class="bi bi-exclamation-triangle-fill"></i>
+
+            <?php endif; ?>
+
+            <?= e($pesan) ?>
+
+
+            <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="alert"
+            ></button>
+
+        </div>
+
+    <?php endif; ?>
+
+
+    <div class="row g-4">
+
+
+        <!-- INFORMASI USAHA -->
+
+        <div class="col-lg-5">
+
+            <div class="card p-4 h-100">
+
+                <div class="text-center">
+
+                    <div
+                        class="location-icon
+                        <?= $lokasiLengkap
+                            ? 'location-success'
+                            : 'location-warning'
+                        ?>"
+                    >
+
+                        <i class="bi bi-geo-alt-fill"></i>
+
+                    </div>
+
+
+                    <h4 class="fw-bold">
+
+                        <?= e($penjual['nama_usaha']) ?>
+
+                    </h4>
+
+
+                    <?php if ($lokasiLengkap): ?>
+
+                        <span class="badge bg-success">
+
+                            <i class="bi bi-check-circle"></i>
+
+                            Lokasi Sudah Diatur
+
+                        </span>
+
+                    <?php else: ?>
+
+                        <span class="badge bg-warning text-dark">
+
+                            <i class="bi bi-exclamation-circle"></i>
+
+                            Lokasi Belum Diatur
+
+                        </span>
+
+                    <?php endif; ?>
+
+                </div>
+
+
+                <hr>
+
+
+                <div class="mb-3">
+
+                    <label class="text-muted small">
+
+                        Alamat Usaha
+
+                    </label>
+
+                    <div class="mt-1">
+
+                        <i class="bi bi-house-door text-success"></i>
+
+                        <?= e($penjual['alamat'] ?: 'Belum diisi') ?>
+
+                    </div>
+
+                </div>
+
+
+                <?php if ($lokasiLengkap): ?>
+
+                    <div class="coordinate-box">
+
+                        <div class="text-muted small mb-2">
+
+                            <i class="bi bi-crosshair"></i>
+
+                            Koordinat Saat Ini
+
+                        </div>
+
+
+                        <div class="coordinate-value">
+
+                            <div>
+
+                                <strong>Latitude:</strong>
+
+                                <?= e($penjual['latitude']) ?>
+
+                            </div>
+
+                            <div>
+
+                                <strong>Longitude:</strong>
+
+                                <?= e($penjual['longitude']) ?>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                <?php endif; ?>
+
+
+                <div class="alert alert-info mt-4 mb-0">
+
+                    <i class="bi bi-info-circle-fill"></i>
+
+                    <strong>Mengapa lokasi diperlukan?</strong>
+
+                    <ul class="mb-0 mt-2">
+
+                        <li>
+                            Menghitung jarak ke pembeli.
+                        </li>
+
+                        <li>
+                            Menghitung ongkos kirim.
+                        </li>
+
+                        <li>
+                            Menentukan jangkauan pengiriman.
+                        </li>
+
+                        <li>
+                            Mendukung fitur peta SIPESTA.
+                        </li>
+
+                    </ul>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- FORM LOKASI -->
+
+        <div class="col-lg-7">
+
+            <div class="card p-4">
+
+                <h5 class="fw-bold mb-1">
+
+                    <i class="bi bi-crosshair text-success"></i>
+
+                    Atur Koordinat GPS
+
+                </h5>
+
+                <p class="text-muted">
+
+                    Gunakan GPS perangkat Anda atau masukkan koordinat
+                    secara manual.
+
+                </p>
+
+
+                <div
+                    id="statusLokasi"
+                    class="alert alert-secondary"
+                >
+
+                    <i class="bi bi-info-circle"></i>
+
+                    Klik tombol <strong>Gunakan Lokasi Saya</strong>
+                    untuk mendapatkan koordinat GPS.
+
+                </div>
+
+
+                <button
+                    type="button"
+                    id="btnLokasi"
+                    class="btn btn-success w-100 gps-button mb-4"
+                >
+
+                    <i class="bi bi-geo-alt-fill"></i>
+
+                    Gunakan Lokasi Saya
+
+                </button>
+
+
+                <form method="POST">
+
+
+                    <div class="row g-3">
+
+
+                        <div class="col-md-6">
+
+                            <label class="form-label fw-semibold">
+
+                                Latitude
+
+                            </label>
+
+                            <input
+                                type="number"
+                                step="any"
+                                min="-90"
+                                max="90"
+                                name="latitude"
+                                id="latitude"
+                                class="form-control"
+                                value="<?= e($penjual['latitude'] ?? '') ?>"
+                                placeholder="-5.147665"
+                                required
+                            >
+
+                            <div class="form-text">
+
+                                Nilai antara -90 sampai 90.
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="col-md-6">
+
+                            <label class="form-label fw-semibold">
+
+                                Longitude
+
+                            </label>
+
+                            <input
+                                type="number"
+                                step="any"
+                                min="-180"
+                                max="180"
+                                name="longitude"
+                                id="longitude"
+                                class="form-control"
+                                value="<?= e($penjual['longitude'] ?? '') ?>"
+                                placeholder="119.432732"
+                                required
+                            >
+
+                            <div class="form-text">
+
+                                Nilai antara -180 sampai 180.
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <hr class="my-4">
+
+
+                    <div class="d-flex justify-content-end gap-2">
+
+                        <a
+                            href="index.php"
+                            class="btn btn-outline-secondary"
+                        >
+
+                            <i class="bi bi-arrow-left"></i>
+
+                            Kembali
+
+                        </a>
+
+
+                        <button
+                            type="submit"
+                            class="btn btn-success"
+                        >
+
+                            <i class="bi bi-save"></i>
+
+                            Simpan Lokasi
+
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </div>
+
+
+            <!-- TIPS -->
+
+            <div class="card info-card mt-4 p-4">
+
+                <h6 class="fw-bold">
+
+                    <i class="bi bi-lightbulb text-warning"></i>
+
+                    Tips mendapatkan lokasi yang akurat
+
+                </h6>
+
+                <ol class="mb-0">
+
+                    <li>
+                        Pastikan GPS perangkat aktif.
+                    </li>
+
+                    <li>
+                        Izinkan browser mengakses lokasi.
+                    </li>
+
+                    <li>
+                        Berdiri atau berada di sekitar lokasi usaha.
+                    </li>
+
+                    <li>
+                        Tunggu sampai GPS mendapatkan koordinat.
+                    </li>
+
+                    <li>
+                        Periksa kembali koordinat sebelum menyimpan.
+                    </li>
+
+                </ol>
+
+            </div>
+
+        </div>
+
+    </div>
+
 </div>
+
+
 <script>
-document.addEventListener('DOMContentLoaded',()=>{
- const b=document.getElementById('btnLokasi'),h=document.getElementById('btnHapus'),s=document.getElementById('btnSimpan'),lat=document.getElementById('latitude'),lng=document.getElementById('longitude'),lt=document.getElementById('latitudeTampil'),gt=document.getElementById('longitudeTampil'),st=document.getElementById('statusLokasi');
- function status(t,i,m){st.className='alert alert-'+t+' status-box';st.innerHTML='<i class="fa-solid '+i+'"></i> '+m}
- function update(){lt.textContent=lat.value.trim()||'-';gt.textContent=lng.value.trim()||'-';s.disabled=!(lat.value.trim()&&lng.value.trim())}
- b.addEventListener('click',()=>{if(!navigator.geolocation){status('danger','fa-triangle-exclamation','Browser Anda tidak mendukung fitur lokasi.');return}b.disabled=true;b.innerHTML='<span class="spinner-border spinner-border-sm me-1"></span>Mengambil lokasi...';status('info','fa-location-crosshairs','Sedang mengambil lokasi perangkat. Pastikan GPS aktif.');navigator.geolocation.getCurrentPosition(p=>{lat.value=Number(p.coords.latitude).toFixed(8);lng.value=Number(p.coords.longitude).toFixed(8);update();status('success','fa-circle-check','Lokasi berhasil ditemukan. Klik Simpan Lokasi untuk menyimpannya.');b.disabled=false;b.innerHTML='<i class="fa-solid fa-check"></i> Lokasi Berhasil Diambil'},e=>{let m='Gagal mengambil lokasi perangkat.';if(e.code===e.PERMISSION_DENIED)m='Akses lokasi ditolak. Izinkan lokasi pada browser lalu coba lagi.';else if(e.code===e.POSITION_UNAVAILABLE)m='Lokasi perangkat tidak tersedia. Pastikan GPS aktif.';else if(e.code===e.TIMEOUT)m='Waktu pengambilan lokasi habis. Silakan coba lagi.';status('danger','fa-triangle-exclamation',m);b.disabled=false;b.innerHTML='<i class="fa-solid fa-crosshairs"></i> Gunakan Lokasi Saya'},{enableHighAccuracy:true,timeout:15000,maximumAge:0})});
- h.addEventListener('click',()=>{lat.value='';lng.value='';update();status('warning','fa-triangle-exclamation','Lokasi dihapus dari formulir. Klik Simpan Lokasi untuk menghapus lokasi dari database.')});
- update(); if(lat.value.trim()&&lng.value.trim())status('success','fa-circle-check','Lokasi usaha sudah tersimpan.');
+
+const btnLokasi =
+    document.getElementById('btnLokasi');
+
+const statusLokasi =
+    document.getElementById('statusLokasi');
+
+const latitude =
+    document.getElementById('latitude');
+
+const longitude =
+    document.getElementById('longitude');
+
+
+btnLokasi.addEventListener('click', function () {
+
+    if (!navigator.geolocation) {
+
+        statusLokasi.className =
+            'alert alert-danger';
+
+        statusLokasi.innerHTML =
+            '<i class="bi bi-x-circle-fill"></i> ' +
+            'Browser Anda tidak mendukung GPS.';
+
+        return;
+    }
+
+
+    btnLokasi.disabled = true;
+
+    btnLokasi.innerHTML =
+        '<span class="spinner-border spinner-border-sm"></span> ' +
+        'Mengambil lokasi...';
+
+
+    statusLokasi.className =
+        'alert alert-primary';
+
+    statusLokasi.innerHTML =
+        '<i class="bi bi-hourglass-split"></i> ' +
+        'Sedang mengambil lokasi GPS. Mohon tunggu...';
+
+
+    navigator.geolocation.getCurrentPosition(
+
+        function (position) {
+
+            const lat =
+                position.coords.latitude;
+
+            const lng =
+                position.coords.longitude;
+
+
+            latitude.value =
+                lat.toFixed(8);
+
+            longitude.value =
+                lng.toFixed(8);
+
+
+            statusLokasi.className =
+                'alert alert-success';
+
+            statusLokasi.innerHTML =
+                '<i class="bi bi-check-circle-fill"></i> ' +
+                '<strong>Lokasi berhasil ditemukan.</strong><br>' +
+                'Koordinat GPS telah dimasukkan ke formulir.';
+
+
+            btnLokasi.disabled = false;
+
+            btnLokasi.innerHTML =
+                '<i class="bi bi-arrow-clockwise"></i> ' +
+                'Ambil Ulang Lokasi';
+
+
+        },
+
+        function (error) {
+
+            let pesan =
+                'Gagal mendapatkan lokasi.';
+
+
+            if (error.code === 1) {
+
+                pesan =
+                    'Akses lokasi ditolak. ' +
+                    'Silakan izinkan lokasi pada browser.';
+
+            } else if (error.code === 2) {
+
+                pesan =
+                    'Lokasi tidak tersedia. ' +
+                    'Pastikan GPS/perangkat lokasi aktif.';
+
+            } else if (error.code === 3) {
+
+                pesan =
+                    'Waktu pengambilan lokasi habis. ' +
+                    'Silakan coba lagi.';
+
+            }
+
+
+            statusLokasi.className =
+                'alert alert-danger';
+
+            statusLokasi.innerHTML =
+                '<i class="bi bi-exclamation-triangle-fill"></i> ' +
+                pesan;
+
+
+            btnLokasi.disabled = false;
+
+            btnLokasi.innerHTML =
+                '<i class="bi bi-geo-alt-fill"></i> ' +
+                'Gunakan Lokasi Saya';
+
+        },
+
+        {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0
+        }
+
+    );
+
 });
+
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-</body></html>
+
+
+<script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js">
+</script>
+
+</body>
+
+</html>

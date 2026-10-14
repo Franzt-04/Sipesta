@@ -80,7 +80,7 @@ $stmtProduk = $conn->prepare("
         status
     FROM produk
     WHERE id = ?
-      AND penjual_id = ?
+        AND penjual_id = ?
     LIMIT 1
 ");
 
@@ -1087,9 +1087,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div
                     class="d-flex flex-column
-                           flex-md-row
-                           justify-content-between
-                           gap-2">
+                            flex-md-row
+                            justify-content-between
+                            gap-2">
 
 
                     <a

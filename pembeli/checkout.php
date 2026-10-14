@@ -148,6 +148,7 @@ $keranjang_id = (int)$keranjang['id'];
 $stmt = $conn->prepare("
     SELECT
         kd.id,
+        kd.keranjang_id,
         kd.produk_id,
         kd.jumlah,
         kd.harga,
@@ -156,11 +157,11 @@ $stmt = $conn->prepare("
         p.nama_produk,
         p.harga AS harga_produk,
         p.stok,
+        p.foto,
         p.satuan,
         p.status,
-        p.foto,
-        p.penjual_id,
 
+        pen.id AS penjual_id,
         pen.nama_usaha,
         pen.latitude AS penjual_latitude,
         pen.longitude AS penjual_longitude
@@ -1267,11 +1268,6 @@ if ($stmt) {
 
                         <!-- BUTTON -->
 
-                        <button
-                            type="submit"
-                            class="btn btn-success btn-lg w-100 mt-4"
-                        >
-
                         <input
                             type="hidden"
                             name="jarak_km"
@@ -1284,10 +1280,12 @@ if ($stmt) {
                             id="ongkos_kirim"
                             value="0">
 
+                        <button
+                            type="submit"
+                            class="btn btn-success btn-lg w-100 mt-4"
+                        >
                             <i class="fa-solid fa-check-circle"></i>
-
                             Buat Pesanan
-
                         </button>
 
 
@@ -1426,6 +1424,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 'danger',
                 'fa-triangle-exclamation',
                 'Lokasi penjual belum tersedia untuk menghitung ongkos kirim.'
+            );
+            return false;
+        }
+
+        if (!pengaturanOngkir) {
+            resetOngkir();
+            setStatus(
+                'danger',
+                'fa-triangle-exclamation',
+                'Pengaturan ongkos kirim belum aktif. Silakan hubungi admin.'
             );
             return false;
         }
